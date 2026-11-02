@@ -1,0 +1,4 @@
+build/
+lcr
+*.o
+*.deb
