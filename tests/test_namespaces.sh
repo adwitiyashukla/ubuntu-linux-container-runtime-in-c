@@ -17,13 +17,11 @@ expect "--net host sees the host interfaces" "$(ctr --net host "$ROOTFS" ls /sys
 expect "ipc namespace starts empty" "$(ctr "$ROOTFS" sh -c 'wc -l < /proc/sysvipc/shm')" 1
 expect "cgroup namespace puts the container at the root" "$(ctr "$ROOTFS" grep '^0::' /proc/self/cgroup)" "0::/"
 
-id=$(ctr -d --privileged "$ROOTFS" sh -c 'mkdir -p /mnt && mount -t tmpfs none /mnt && sleep 30')
-sleep 0.5
+id=$(ctr -d --privileged "$ROOTFS" sh -c 'mkdir -p /mnt && mount -t tmpfs none /mnt && echo ready && sleep 30')
+wait_until 100 ready "$id"
 expect "a mount made inside is visible inside" "$("$LCR" exec "$id" grep -c ' /mnt tmpfs' /proc/mounts)" 1
 expect "the same mount is invisible on the host" "$(grep -c "$WORK/state/$id/rootfs/mnt" /proc/mounts)" 0
-"$LCR" kill "$id" KILL
-sleep 0.3
-"$LCR" rm "$id"
+"$LCR" rm -f "$id"
 
 if [ "$MODE" = rootless ]; then
 	expect "uid 0 inside maps to the real user" "$(ctr "$ROOTFS" sh -c 'id -u; awk "{print \$2}" /proc/self/uid_map')" $'0\n'"$(id -u)"

@@ -59,9 +59,7 @@ if docker info >/dev/null 2>&1; then
 fi
 id=$("$LCR" run -d "$rootfs" sleep 600)
 latency "lcr exec" "$LCR" exec "$id" /bin/true
-"$LCR" kill "$id" KILL
-sleep 0.3
-"$LCR" rm "$id"
+"$LCR" rm -f "$id"
 
 echo
 echo "seccomp filter cost, 5000000 getppid calls"

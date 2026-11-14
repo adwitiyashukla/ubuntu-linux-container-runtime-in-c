@@ -3,9 +3,9 @@
 
 web=$(ctr -d --net bridge --name web "$ROOTFS" httpd -f -p 80 -h /www)
 peer=$(ctr -d --net bridge --name peer "$ROOTFS" sleep 60)
-sleep 0.5
 ip=$("$LCR" ps | awk '$2 == "web" {print $5}')
 peer_ip=$("$LCR" ps | awk '$2 == "peer" {print $5}')
+wait_until 100 reachable "http://$ip/index.html"
 
 expect_match "the container gets an address in the lcr subnet" "$ip" "10.77.0."
 expect "two containers get different addresses" "$(test "$ip" != "$peer_ip" && echo yes || echo no)" yes
@@ -24,15 +24,15 @@ expect "the masquerade rule is installed" "$(nft list table ip lcr0 | grep -c ma
 
 pub=$(ctr -d --net bridge --name pub -p 18080:80 "$ROOTFS" httpd -f -p 80 -h /www)
 pub_ip=$("$LCR" ps | awk '$2 == "pub" {print $5}')
-sleep 0.5
+wait_until 100 reachable http://127.0.0.1:18080/index.html
 expect "a published port answers on localhost" "$(fetch http://127.0.0.1:18080/index.html)" "hello from lcr"
 expect "the dnat rule targets the container" "$(nft list table ip "lcr_$pub" | grep -c "dnat to $pub_ip:80")" 2
 expect "publishing without bridge networking is rejected" "$(ctr -p 18081:80 "$ROOTFS" true 2>&1 | grep -c 'needs --net bridge')" 1
 
 "$LCR" kill pub KILL
-wait_until 50 sh -c '! nft list tables | grep -q "lcr_'"$pub"'"'
+wait_until 100 stopped pub
 expect "the port table is removed with the container" "$(nft list tables | grep -c "lcr_$pub")" 0
-wait_until 50 sh -c '! ip -o link show | grep -q "lcr'"${pub:0:10}"'"'
+wait_until 100 sh -c '! ip -o link show | grep -q "lcr'"${pub:0:10}"'"'
 expect "the veth is removed with the container" "$(ip -o link show | grep -c "lcr${pub:0:10}")" 0
 "$LCR" rm pub
 

@@ -18,17 +18,22 @@ expect "pids limit of 10 leaves room for 8 forks" "$(ctr --pids 10 "$ROOTFS" pro
 expect "pids limit of 4 leaves room for 2 forks" "$(ctr --pids 4 "$ROOTFS" probe forks 20)" forked=2
 expect "the cgroup is removed after the run" "$(ls "$parent" 2>/dev/null | grep -c '^[0-9a-f]\{12\}$')" 0
 
-id=$(ctr -d -m 64m --cpus 1 --pids 50 "$ROOTFS" sh -c 'sleep 30 & sleep 30 & wait')
-sleep 0.5
+grown() {
+	[ "$(wc -l < "$1")" -ge "$2" ]
+}
+
+id=$(ctr -d -m 64m --cpus 1 --pids 50 "$ROOTFS" sh -c 'sleep 30 & sleep 30 & echo ready; wait')
+wait_until 100 ready "$id"
 stats=$("$LCR" stats "$id")
 expect_match "stats shows the memory limit" "$stats" "memory limit     64.0 MiB"
 expect_match "stats shows the pids limit" "$stats" "pids limit       50"
 expect_match "stats counts the processes" "$stats" "pids current     4"
 expect_match "stats shows no oom kills" "$stats" "oom kills        0"
-before=$(wc -l < "$parent/$id/cgroup.procs")
-"$LCR" exec "$id" sleep 2 &
-sleep 0.5
-expect "exec and its child join the container cgroup" "$(( $(wc -l < "$parent/$id/cgroup.procs") - before ))" 2
+procs=$parent/$id/cgroup.procs
+before=$(wc -l < "$procs")
+"$LCR" exec "$id" sleep 3 &
+wait_until 100 grown "$procs" $((before + 2))
+expect "exec and its child join the container cgroup" "$(( $(wc -l < "$procs") - before ))" 2
 wait
 if [ "$version" = 2 ]; then
 	expect "memory.max is visible inside the container" "$("$LCR" exec "$id" cat /sys/fs/cgroup/memory.max)" 67108864
@@ -36,11 +41,12 @@ if [ "$version" = 2 ]; then
 	expect "the cgroup2 mount inside is read-only" "$("$LCR" exec "$id" sh -c '(echo max > /sys/fs/cgroup/memory.max) 2>/dev/null && echo wrote || echo refused')" refused
 	expect "the host sees the init in the container cgroup" "$(grep -c "^$("$LCR" ps | awk -v id="$id" '$1 == id {print $3}')\$" "$parent/$id/cgroup.procs")" 1
 fi
-"$LCR" kill "$id" KILL
-sleep 0.5
-"$LCR" rm "$id"
+"$LCR" rm -f "$id"
 expect "rm removes the cgroup of a detached container" "$(test -d "$parent/$id" && echo present || echo absent)" absent
 
-expect "an oom kill is reported in stats" "$(id=$(ctr -d -m 32m "$ROOTFS" sh -c 'probe hog 64; sleep 30'); sleep 1; "$LCR" stats "$id" | grep 'oom kills' | awk '{print $3}'; "$LCR" kill "$id" KILL; sleep 0.3; "$LCR" rm "$id")" 1
+oom=$(ctr -d -m 32m "$ROOTFS" sh -c 'probe hog 64; echo ready; sleep 30')
+wait_until 100 ready "$oom"
+expect "an oom kill is reported in stats" "$("$LCR" stats "$oom" | awk '/oom kills/ {print $3}')" 1
+"$LCR" rm -f "$oom"
 
 finish

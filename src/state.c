@@ -204,9 +204,8 @@ int state_resolve(const char *ref, struct state *st)
 		}
 	}
 	closedir(d);
-	if (matches > 1) {
+	if (matches > 1)
 		fail("%s matches more than one container", ref);
-	}
 	return found ? 0 : -1;
 }
 
@@ -345,9 +344,8 @@ int cmd_kill(int argc, char **argv)
 		if (sig <= 0)
 			fail("unknown signal %s", argv[2]);
 	}
-	if (state_resolve(argv[1], &st) < 0 || !state_alive(&st)) {
+	if (state_resolve(argv[1], &st) < 0 || !state_alive(&st))
 		fail("no running container matches %s", argv[1]);
-	}
 	if (signal_container(&st, sig) < 0)
 		die("send signal %d to %s", sig, st.id);
 	return 0;
@@ -367,6 +365,7 @@ static int wait_until_dead(const struct state *st, int tries)
 
 int cmd_rm(int argc, char **argv)
 {
+	struct timespec ts = { 0, 20 * 1000 * 1000 };
 	struct state st;
 	struct cgroup cg;
 	int force = 0;
@@ -385,13 +384,11 @@ int cmd_rm(int argc, char **argv)
 		fputs("usage: lcr rm [-f] CONTAINER\n", stderr);
 		return 125;
 	}
-	if (state_resolve(ref, &st) < 0) {
+	if (state_resolve(ref, &st) < 0)
 		fail("no container matches %s", ref);
-	}
 	if (state_alive(&st)) {
-		if (!force) {
+		if (!force)
 			fail("container %s is running, stop it first or use -f", st.id);
-		}
 		signal_container(&st, SIGKILL);
 		if (wait_until_dead(&st, 250) < 0)
 			fail("container %s did not stop", st.id);
@@ -400,9 +397,14 @@ int cmd_rm(int argc, char **argv)
 		cgroup_open_existing(&cg, st.cgroup_mode, st.cgroup);
 		cgroup_destroy(&cg);
 	}
-	if (rm_rf(st.dir) < 0)
-		die("remove %s", st.dir);
-	return 0;
+	for (i = 0; i < 50; i++) {
+		rm_rf(st.dir);
+		if (access(st.dir, F_OK) < 0)
+			return 0;
+		nanosleep(&ts, NULL);
+	}
+	fail("could not remove %s", st.dir);
+	return 125;
 }
 
 int cmd_stats(int argc, char **argv)
@@ -414,9 +416,8 @@ int cmd_stats(int argc, char **argv)
 		fputs("usage: lcr stats CONTAINER\n", stderr);
 		return 125;
 	}
-	if (state_resolve(argv[1], &st) < 0 || !state_alive(&st)) {
+	if (state_resolve(argv[1], &st) < 0 || !state_alive(&st))
 		fail("no running container matches %s", argv[1]);
-	}
 	if (st.cgroup_mode == CG_NONE || !st.cgroup[0]) {
 		fail("container %s has no cgroup", st.id);
 	}
@@ -438,9 +439,8 @@ int cmd_logs(int argc, char **argv)
 		fputs("usage: lcr logs CONTAINER\n", stderr);
 		return 125;
 	}
-	if (state_resolve(argv[1], &st) < 0) {
+	if (state_resolve(argv[1], &st) < 0)
 		fail("no container matches %s", argv[1]);
-	}
 	join_path(path, sizeof(path), st.dir, "log");
 	fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0)
@@ -499,9 +499,8 @@ int cmd_exec(int argc, char **argv)
 		fputs(exec_usage, stderr);
 		return 125;
 	}
-	if (state_resolve(argv[optind], &st) < 0 || !state_alive(&st)) {
+	if (state_resolve(argv[optind], &st) < 0 || !state_alive(&st))
 		fail("no running container matches %s", argv[optind]);
-	}
 	snprintf(cfg.hostname, sizeof(cfg.hostname), "%s", st.hostname);
 	if (st.cgroup_mode != CG_NONE && st.cgroup[0]) {
 		cgroup_open_existing(&cg, st.cgroup_mode, st.cgroup);

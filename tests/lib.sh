@@ -59,11 +59,19 @@ wait_until() {
 	return 1
 }
 
+stopped() {
+	"$LCR" ps | awk -v c="$1" 'NR > 1 && ($1 == c || $2 == c) && $4 == "exited" {f = 1} END {exit !f}'
+}
+
+ready() {
+	"$LCR" logs "$1" 2>/dev/null | grep -qx ready
+}
+
+reachable() {
+	fetch "$1" >/dev/null 2>&1
+}
+
 stop_all() {
-	for id in $("$LCR" ps | awk 'NR > 1 && $4 == "running" {print $1}'); do
-		"$LCR" kill "$id" KILL 2>/dev/null
-	done
-	sleep 0.3
 	for id in $("$LCR" ps | awk 'NR > 1 {print $1}'); do
 		"$LCR" rm -f "$id" 2>/dev/null
 	done
@@ -71,5 +79,6 @@ stop_all() {
 
 finish() {
 	printf '%s: %d passed, %d failed\n' "$(basename "$0" .sh)" "$pass" "$fail"
+	stop_all
 	[ "$fail" -eq 0 ]
 }
