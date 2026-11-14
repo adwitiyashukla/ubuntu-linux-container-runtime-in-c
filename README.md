@@ -237,7 +237,7 @@ About 30 ns per syscall for the filter walk, which is what a 117 instruction BPF
 
 ## Tests
 
-`sudo make test` builds a busybox rootfs and a static probe binary, then runs 132 checks across six files. `tests/run.sh rootless` runs 94 of them as a normal user. Each check runs a real container and looks at the result from both sides, for example a tmpfs mounted inside a privileged container must show up in the container's /proc/mounts and must not show up in the host's.
+`sudo make test` builds a busybox rootfs and a static probe binary, then runs 132 checks across six files, or 136 on a cgroup v2 host, where four more checks read the container's own cgroup files. `tests/run.sh rootless` runs 94 of them as a normal user. Each check runs a real container and looks at the result from both sides, for example a tmpfs mounted inside a privileged container must show up in the container's /proc/mounts and must not show up in the host's.
 
 | File | What it checks |
 |---|---|
@@ -250,11 +250,11 @@ About 30 ns per syscall for the filter walk, which is what a 117 instruction BPF
 
 The probe (`tests/probe.c`) is a static C program copied into the rootfs. It calls a named syscall and prints the errno, allocates and touches a given number of MiB, spins for a number of seconds and prints its CPU time, forks N children, counts zombies after an orphan exits, and times a tight getppid loop.
 
-CI on GitHub Actions builds with gcc and clang, runs the root suite on Ubuntu 24.04 (cgroup v2, kernel 6.8), runs the rootless suite as the runner user, and builds and installs the .deb.
+CI on GitHub Actions builds with gcc and clang, runs the root suite on GitHub's Ubuntu 24.04 runner, a cgroup v2 host where all 136 checks pass, runs the rootless suite as the runner user, and builds and installs the .deb.
 
 ## Requirements
 
-Linux 5.7 or newer for clone3 with CLONE_INTO_CGROUP, falling back to a plain clone3 or clone plus a `cgroup.procs` write on older kernels. overlayfs, cgroup v2 or v1, and nftables for bridge mode. Developed and tested on Ubuntu 24.04 with kernels 6.8 and 6.18. The code is x86_64 only because the seccomp program checks for AUDIT_ARCH_X86_64.
+Linux 5.7 or newer for clone3 with CLONE_INTO_CGROUP, falling back to a plain clone3 or clone plus a `cgroup.procs` write on older kernels. overlayfs, cgroup v2 or v1, and nftables for bridge mode. Developed on Ubuntu 24.04 with kernel 6.18 and tested there and on GitHub's Ubuntu 24.04 runners. The code is x86_64 only because the seccomp program checks for AUDIT_ARCH_X86_64.
 
 ## Layout
 
